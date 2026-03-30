@@ -20,7 +20,7 @@ import {
   LockIcon
 } from 'lucide-react';
 import { MobileAppMockup } from './MobileAppMockup';
-import pixelAvatar from 'figma:asset/4b11b2904922ad1b8e6814eb7db5db3e34509ced.png';
+import pixelAvatar from '@/assets/4b11b2904922ad1b8e6814eb7db5db3e34509ced.png';
 
 export function Milestone2Section() {
   const [selectedWorkout, setSelectedWorkout] = useState<string | null>(null);

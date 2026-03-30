@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from './ui/badge';
 import { Activity, Bell, Camera } from 'lucide-react';
-import pixelAvatar from 'figma:asset/4b11b2904922ad1b8e6814eb7db5db3e34509ced.png';
+import pixelAvatar from '@/assets/4b11b2904922ad1b8e6814eb7db5db3e34509ced.png';
 
 interface MobileAppMockupProps {
   platform: 'ios' | 'android';
