@@ -112,3 +112,320 @@ Don't let the gaps above overshadow what's already good:
 ---
 
 *Last updated: 2026-03-29*
+
+---
+
+---
+
+# Technical Deep Dives
+
+The sections below are meant to give each team member enough context to get started without drowning in documentation. These are not exhaustive — they point you at what matters and flag what will trip you up.
+
+---
+
+## Deep Dive: HealthKit (iOS)
+
+### What it is
+HealthKit is Apple's health data platform. It acts as a central, on-device repository for health and fitness data from any source — iPhone sensors, Apple Watch, third-party apps. Your app doesn't own the data; it requests read/write access to Apple's shared store.
+
+### How the permission model works
+Apple takes health privacy seriously. The flow is:
+1. Your app declares which data types it needs in `Info.plist`
+2. At runtime you call `HKHealthStore.requestAuthorization(toShare:read:)` — this shows the system permission dialog
+3. Apple **never tells your app if the user denied a specific type** (only that the request completed). This is intentional — apps can't fingerprint which health data a user has or doesn't have.
+
+This last point is subtle and trips people up. The way to handle it: after authorization completes, try to query data. If you get no results and the user said they'd authorize, surface a "check your permissions in Settings" message.
+
+### Key classes to know
+| Class | What it does |
+|---|---|
+| `HKHealthStore` | The entry point. One instance per app. Use it to request auth and execute queries. |
+| `HKQuantityType` | Represents a measurable data type, e.g. heart rate, steps. |
+| `HKQuantitySample` | A single reading: a quantity + a time range + metadata. |
+| `HKAnchoredObjectQuery` | The right query type for live/streaming data. Returns new samples since the last query using an "anchor" (like a bookmark). |
+| `HKObserverQuery` | Tells your app when new data arrives. Pair with `HKAnchoredObjectQuery` for live updates. |
+
+### How to read live heart rate
+```swift
+let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+let query = HKAnchoredObjectQuery(
+    type: heartRateType,
+    predicate: nil,
+    anchor: nil,
+    limit: HKObjectQueryNoLimit
+) { query, samples, deletedObjects, anchor, error in
+    // samples contains new HKQuantitySample objects
+    // Extract BPM: sample.quantity.doubleValue(for: HKUnit(from: "count/min"))
+}
+store.execute(query)
+```
+
+### Apple Watch specifics
+- Apple Watch continuously measures heart rate during workouts and periodically at rest
+- The data flows from Watch → iPhone via HealthKit sync automatically when the Watch is paired
+- You read it from the iPhone's HealthKit store — you don't talk to the Watch directly in MVP
+- For truly continuous readings (not just periodic), the user needs an active workout session on the Watch
+
+### Key gotcha summary
+- HealthKit is **disabled on the iOS Simulator** — always test on a real device
+- You must have the HealthKit entitlement enabled in Xcode (Signing & Capabilities) AND the Info.plist keys — both are required
+- Background delivery (`enableBackgroundDelivery`) requires a real device and the app to have background modes enabled
+
+---
+
+## Deep Dive: Health Connect (Android)
+
+### What it is
+Health Connect is Google's equivalent of HealthKit — a centralized health data store on Android that aggregates data from Galaxy Watch, Wear OS devices, Fitbit, and other apps. It was introduced in 2022 and became built into Android 14+.
+
+### How it differs from HealthKit
+| | HealthKit (iOS) | Health Connect (Android) |
+|---|---|---|
+| Data model | Streaming / real-time observer queries | Record-based read/write (polling) |
+| Live data | `HKObserverQuery` triggers on new data | Must poll — no push callbacks |
+| Watch connection | Watch syncs to iPhone automatically | Galaxy Watch syncs via Samsung Health app |
+| Minimum OS | iOS 8 | Android 9 (API 28), but Health Connect app may need manual install on Android 9–13 |
+
+### How the permission model works
+Similar to HealthKit: you declare permissions, request them at runtime, user approves in a system dialog. Unlike HealthKit, Health Connect **does** tell you which permissions were granted.
+
+```kotlin
+val permissions = setOf(
+    HealthPermission.getReadPermission(HeartRateRecord::class)
+)
+val requestPermissions = registerForActivityResult(
+    PermissionController.createRequestPermissionResultContract()
+) { granted ->
+    if (granted.containsAll(permissions)) {
+        // Permission granted — start reading data
+    }
+}
+```
+
+### Reading heart rate records
+Health Connect stores discrete records, not a stream. To get the latest heart rate:
+```kotlin
+val response = healthConnectClient.readRecords(
+    ReadRecordsRequest(
+        HeartRateRecord::class,
+        timeRangeFilter = TimeRangeFilter.between(
+            Instant.now().minus(Duration.ofMinutes(5)),
+            Instant.now()
+        )
+    )
+)
+// response.records is a list of HeartRateRecord
+```
+
+### Galaxy Watch specifics
+- Galaxy Watch syncs heart rate data to the Samsung Health app on the paired Android phone
+- Samsung Health writes this data into Health Connect
+- The chain is: Galaxy Watch → Samsung Health app → Health Connect → your app
+- If Samsung Health isn't installed or isn't syncing, your app gets no data
+
+### Key gotcha summary
+- Health Connect is a **separate app** on Android 9–13 — users may need to install it from the Play Store
+- Real-time streaming doesn't exist in Health Connect — polling every 5–10s is the MVP approach
+- Galaxy Watch data availability depends entirely on Samsung Health syncing — test this chain early
+
+---
+
+## Deep Dive: Apache Kafka
+
+### What it is
+Kafka is a distributed event streaming platform. The mental model: it's a persistent, ordered log of messages that producers write to and consumers read from. Unlike a traditional message queue (which deletes messages after they're consumed), Kafka retains messages for a configurable period — any consumer can replay from any point.
+
+For PIXEL HEALTH, Kafka sits between the mobile app and the backend services. The phone doesn't write directly to a database — it sends events to Kafka, and backend consumers process them independently.
+
+### Core concepts
+
+**Topic** — A named stream of messages. Think of it like a table in a database, or a channel in Slack. We have one: `user-heart-rate`. All BPM readings from all users and all devices flow into this topic.
+
+**Partition** — Topics are split into partitions for parallelism. For MVP on Aiven free tier, one partition is fine.
+
+**Producer** — Any client that writes messages to a topic. In our case: the FastAPI backend endpoint that receives data from the mobile app.
+
+**Consumer** — Any client that reads messages from a topic. In M2 we'll have three: alerting, analytics, and storage. For MVP we're just validating the producer side.
+
+**Consumer Group** — A group of consumers sharing the work of reading a topic. Each message goes to one consumer in the group. In M2, the alerting consumer and the storage consumer will be in separate groups so they each see every message.
+
+**Offset** — A sequential ID for each message in a partition. Consumers track their offset to know where they left off. Kafka remembers this — if your consumer crashes and restarts, it picks up where it left off.
+
+### Why Kafka instead of posting directly to the database?
+
+This is a fair question for MVP scale. The short answer: it decouples producers from consumers.
+
+Without Kafka:
+- Mobile app → HTTP → Backend → writes to DB
+- If the DB is slow, the mobile app waits
+- If you want to add analytics later, you modify the write path
+
+With Kafka:
+- Mobile app → HTTP → Backend → publishes to Kafka (fast, fire-and-forget)
+- Storage consumer → reads from Kafka → writes to DB (independently)
+- Analytics consumer → reads from Kafka → does its own thing
+- Adding a new consumer doesn't touch existing code
+
+For a team learning distributed systems, internalizing this decoupling is the real value of including Kafka in MVP.
+
+### The data flow for PIXEL HEALTH
+```
+iPhone/Galaxy Watch
+       ↓  (HTTPS batch POST every 30s)
+FastAPI backend
+       ↓  (Kafka producer)
+user-heart-rate topic
+       ↓                    ↓                   ↓
+[Storage Consumer]  [Alerting Consumer]  [Analytics Consumer]
+  → PostgreSQL         → Push notification    → 5-min averages
+                         if BPM > 100
+```
+
+### Setting up on Aiven
+Aiven manages the Kafka cluster for you — you don't run Kafka locally. What you get from Aiven:
+- A hostname + port to connect to
+- A CA certificate for TLS
+- A username and password
+
+Everything goes in your `.env`. The `kafka-python` connection:
+```python
+from kafka import KafkaProducer
+import json, os
+
+producer = KafkaProducer(
+    bootstrap_servers=f"{os.getenv('KAFKA_HOST')}:{os.getenv('KAFKA_PORT')}",
+    security_protocol="SASL_SSL",
+    sasl_mechanism="PLAIN",
+    sasl_plain_username=os.getenv("KAFKA_USER"),
+    sasl_plain_password=os.getenv("KAFKA_PASSWORD"),
+    ssl_cafile="ca.pem",
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
+```
+
+### Key gotcha summary
+- Aiven free tier clusters **expire after 30 days of inactivity** — keep a note, or set a calendar reminder to ping the cluster
+- Never commit `ca.pem` or `.env` to git — add both to `.gitignore` immediately
+- Kafka is overkill for a 4-person side project at MVP scale, but the learning value is the point. Embrace the complexity as the curriculum.
+
+---
+
+## Deep Dive: FastAPI (Python Backend)
+
+### Why FastAPI over Flask
+Flask is fine, but FastAPI is the better choice here for three reasons:
+1. **Auto-generated docs**: go to `/docs` after starting the server and you get a live Swagger UI. Perfect for a team where the mobile devs need to understand the API.
+2. **Pydantic validation built in**: define your request/response shapes as Python classes, get automatic validation and error messages for free.
+3. **Async-native**: better performance for I/O-heavy work (like Kafka publishing), and the patterns transfer well to production code.
+
+### Project structure for the backend
+```
+backend/
+├── main.py           # FastAPI app + lifespan (Kafka setup)
+├── models.py         # Pydantic request/response models
+├── kafka_producer.py # Kafka connection + publish helper
+├── database.py       # PostgreSQL + MongoDB connections
+├── routers/
+│   └── heart_rate.py # POST /api/heart-rate/batch
+├── .env              # Credentials (never commit)
+├── .env.example      # Template to share with team (commit this)
+└── requirements.txt
+```
+
+### The batch endpoint in full
+```python
+# models.py
+from pydantic import BaseModel
+from datetime import datetime
+
+class HeartRateReading(BaseModel):
+    user_id: str
+    bpm: int
+    timestamp: datetime
+    source: str  # "apple_watch" | "galaxy_watch"
+
+class HeartRateBatch(BaseModel):
+    batch: list[HeartRateReading]
+
+# routers/heart_rate.py
+from fastapi import APIRouter
+from models import HeartRateBatch
+from kafka_producer import publish
+
+router = APIRouter()
+
+@router.post("/api/heart-rate/batch")
+async def ingest_heart_rate(payload: HeartRateBatch):
+    for reading in payload.batch:
+        await publish("user-heart-rate", reading.model_dump())
+    return {"accepted": len(payload.batch)}
+```
+
+### Running locally
+```bash
+pip install fastapi uvicorn kafka-python python-dotenv psycopg2-binary pymongo
+uvicorn main:app --reload
+# API docs: http://localhost:8000/docs
+```
+
+### Key gotcha summary
+- Initialize the Kafka producer once at startup using FastAPI's `lifespan` context manager — not inside the route handler. Creating a new producer connection on every request is slow and will exhaust connections.
+- Use `.env.example` (committed) + `.env` (not committed) pattern from day one. Debugging "why does it work on my machine" across a 4-person team is painful.
+
+---
+
+## Deep Dive: Dual Database Architecture
+
+### Why two databases?
+
+This is the question worth internalizing before writing a line of schema code.
+
+**PostgreSQL (SQL)** is the right choice for data that has a consistent, known shape and benefits from relational integrity: users, workouts, daily metrics. You know exactly what columns a "workout" has. You want to be able to join users to their workouts. You want foreign key constraints to prevent orphaned records.
+
+**MongoDB (NoSQL)** is the right choice for data that is flexible, schema-optional, or varies per user: profiles, settings, avatar metadata. Different users might have different settings keys. The avatar generation pipeline in M2 might attach arbitrary metadata. You don't want to run a migration every time the profile shape changes.
+
+The dual-DB pattern is common in production apps. The rule of thumb: if it has a fixed schema and participates in joins → SQL. If it's flexible and document-like → NoSQL.
+
+### The link between them
+The `user_id` UUID is the single source of truth. It's created in PostgreSQL and then used as the primary identifier in MongoDB too. There is no enforced foreign key between the two systems (different DBs can't do that) — the application layer is responsible for keeping them in sync.
+
+```
+PostgreSQL: users.user_id = "550e8400-e29b-41d4-a716-446655440000"
+MongoDB:    user_profiles.user_id = "550e8400-e29b-41d4-a716-446655440000"
+```
+
+When you create a new user: insert into PostgreSQL first, get the UUID back, then create the MongoDB document with that same UUID. If the MongoDB insert fails, you have a dangling SQL row — in M2 we'll handle this with a transaction wrapper, but for MVP just be aware of the pattern.
+
+### Hosting recommendations (free tier)
+| Database | Free Tier Option | Notes |
+|---|---|---|
+| PostgreSQL | [Supabase](https://supabase.com) | Includes a web UI and REST API out of the box. 500MB free. |
+| MongoDB | [MongoDB Atlas](https://www.mongodb.com/atlas) | 512MB free. No credit card required. |
+
+Both are managed services — you don't run anything locally in production. For local dev, you can run both via Docker if you want, but the free cloud tiers are easier for a team.
+
+### Key gotcha summary
+- Use UUIDs (not auto-increment integers) for `user_id` — they're globally unique across both systems and don't leak record counts
+- Never store plain passwords. Use `bcrypt` to hash before inserting. `pip install bcrypt`.
+- Supabase gives you a PostgreSQL connection string that works with standard `psycopg2` — no special client needed
+
+---
+
+## Decisions Log
+
+Track decisions here as they get made so there's a single source of truth.
+
+| Decision | Choice | Rationale | Date |
+|---|---|---|---|
+| Backend framework | FastAPI | Async-native, auto-docs via Swagger, Pydantic validation | — |
+| SQL database | PostgreSQL | Industry standard, better JSON support than MySQL, free on Supabase | — |
+| NoSQL database | MongoDB Atlas | Flexible schema for profiles/settings, generous free tier | — |
+| Backend hosting | TBD (Railway / Render) | — | — |
+| Kafka hosting | Aiven free tier | Managed, no infra to maintain | — |
+| Story point unit | 30 minutes = 1 SP | Side project constraint, keeps sessions achievable | 2026-03-29 |
+| Branching strategy | TBD | — | — |
+| Repo structure | TBD (monorepo vs separate repos) | — | — |
+
+---
+
+*Last updated: 2026-03-29*
