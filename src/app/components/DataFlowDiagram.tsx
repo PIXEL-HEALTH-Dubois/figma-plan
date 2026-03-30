@@ -267,7 +267,7 @@ export function DataFlowDiagram() {
                 </div>
                 <div>
                   <CardTitle className="text-lg">SQL Database</CardTitle>
-                  <p className="text-xs text-slate-600">PostgreSQL / MySQL</p>
+                  <p className="text-xs text-slate-600">PostgreSQL (via Supabase)</p>
                 </div>
               </div>
             </CardHeader>
@@ -301,8 +301,8 @@ export function DataFlowDiagram() {
                   <Database className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">NoSQL / Datastore</CardTitle>
-                  <p className="text-xs text-slate-600">Firestore / MongoDB</p>
+                  <CardTitle className="text-lg">NoSQL Database</CardTitle>
+                  <p className="text-xs text-slate-600">MongoDB Atlas</p>
                 </div>
               </div>
             </CardHeader>
@@ -353,7 +353,7 @@ export function DataFlowDiagram() {
             
             <div className="text-center">
               <div className="bg-violet-100 border-2 border-violet-500 rounded-lg p-4 min-w-[200px]">
-                <div className="font-bold text-sm mb-2">NoSQL: user_profiles</div>
+                <div className="font-bold text-sm mb-2">MongoDB: user_profiles</div>
                 <div className="text-xs text-left space-y-1 text-slate-700">
                   <div>• user_id (FK)</div>
                   <div>• avatar_url</div>

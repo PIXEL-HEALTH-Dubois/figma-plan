@@ -1,17 +1,18 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { 
-  Smartphone, 
-  Server, 
-  Database, 
-  Bell, 
-  BarChart3, 
+import {
+  Smartphone,
+  Server,
+  Database,
+  Bell,
+  BarChart3,
   Archive,
   ArrowDown,
   CheckCircle2,
   Activity,
-  Shield
+  Shield,
+  Zap
 } from 'lucide-react';
 import { MobileAppMockup } from './MobileAppMockup';
 
@@ -104,14 +105,15 @@ export function MvpSection() {
           </div>
 
           {/* Arrow */}
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-1">
             <ArrowDown className="w-8 h-8 text-slate-400" />
+            <span className="text-xs text-slate-400">HTTPS batch POST every 30s</span>
           </div>
 
-          {/* Backend & Kafka */}
+          {/* Step 2: FastAPI Backend */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Badge className="bg-purple-600">2. Backend & Message Broker</Badge>
+              <Badge className="bg-purple-600">2. FastAPI Backend (Python)</Badge>
             </div>
             <Card className="border-purple-300 bg-gradient-to-br from-purple-50 to-white">
               <CardHeader>
@@ -120,8 +122,54 @@ export function MvpSection() {
                     <Server className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Kafka Broker (Aiven Free Tier)</CardTitle>
-                    <p className="text-xs text-slate-600">Event Streaming Platform</p>
+                    <CardTitle className="text-lg">FastAPI Backend</CardTitle>
+                    <p className="text-xs text-slate-600">Python — receives data, publishes to Kafka</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <span>Endpoint: <code className="bg-slate-200 px-1 rounded text-xs">POST /api/heart-rate/batch</code></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <span>Validates payload with Pydantic models</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <span>Publishes each reading to Kafka as a producer</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <span>Auto-generated API docs at <code className="bg-slate-200 px-1 rounded text-xs">/docs</code></span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Arrow */}
+          <div className="flex flex-col items-center gap-1">
+            <ArrowDown className="w-8 h-8 text-slate-400" />
+            <span className="text-xs text-slate-400">Kafka producer publish</span>
+          </div>
+
+          {/* Step 3: Kafka */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Badge className="bg-yellow-600">3. Kafka Message Broker (Aiven)</Badge>
+            </div>
+            <Card className="border-yellow-300 bg-gradient-to-br from-yellow-50 to-white">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="bg-yellow-500 w-12 h-12 rounded-lg flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Apache Kafka</CardTitle>
+                    <p className="text-xs text-slate-600">Event streaming — Aiven free tier</p>
                   </div>
                 </div>
               </CardHeader>
@@ -133,70 +181,80 @@ export function MvpSection() {
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span>Receives batched heart rate data</span>
+                    <span>Persists events in an ordered, replayable log</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span>Distribute events to consumers</span>
+                    <span>Decouples producers from consumers — each side scales independently</span>
                   </li>
                 </ul>
               </CardContent>
             </Card>
           </div>
 
-          {/* Arrow */}
-          <div className="flex justify-center">
-            <ArrowDown className="w-8 h-8 text-slate-400" />
+          {/* M2 Divider */}
+          <div className="flex items-center gap-3 pt-2">
+            <div className="flex-1 border-t-2 border-dashed border-slate-300" />
+            <Badge variant="outline" className="text-slate-400 border-slate-300 text-xs whitespace-nowrap">
+              Below this line → Milestone 2
+            </Badge>
+            <div className="flex-1 border-t-2 border-dashed border-slate-300" />
           </div>
 
-          {/* Consumers */}
-          <div>
+          {/* Step 4: Kafka Consumers — M2 */}
+          <div className="opacity-50">
             <div className="flex items-center gap-2 mb-4">
-              <Badge className="bg-orange-600">3. Kafka Consumers (Future)</Badge>
+              <Badge variant="outline" className="border-slate-400 text-slate-500">4. Kafka Consumers — M2</Badge>
             </div>
             <div className="grid md:grid-cols-3 gap-4">
-              {/* Alerting Consumer */}
-              <Card className="border-red-300 bg-gradient-to-br from-red-50 to-white opacity-60">
+              <Card className="border-red-200">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="bg-red-500 w-10 h-10 rounded-lg flex items-center justify-center">
+                    <div className="bg-red-400 w-10 h-10 rounded-lg flex items-center justify-center">
                       <Bell className="w-5 h-5 text-white" />
                     </div>
-                    <CardTitle className="text-base">Alerting</CardTitle>
+                    <div>
+                      <CardTitle className="text-base">Alerting</CardTitle>
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-xs text-slate-600 mb-2 italic">Planned for M2</div>
+                <CardContent className="text-xs text-slate-500 space-y-1">
+                  <p>Monitor BPM thresholds</p>
+                  <p>Push notification if HR &gt; 100 BPM</p>
                 </CardContent>
               </Card>
 
-              {/* Analytics Consumer */}
-              <Card className="border-orange-300 bg-gradient-to-br from-orange-50 to-white opacity-60">
+              <Card className="border-orange-200">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="bg-orange-500 w-10 h-10 rounded-lg flex items-center justify-center">
+                    <div className="bg-orange-400 w-10 h-10 rounded-lg flex items-center justify-center">
                       <BarChart3 className="w-5 h-5 text-white" />
                     </div>
-                    <CardTitle className="text-base">Analytics</CardTitle>
+                    <div>
+                      <CardTitle className="text-base">Analytics</CardTitle>
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-xs text-slate-600 mb-2 italic">Planned for M2</div>
+                <CardContent className="text-xs text-slate-500 space-y-1">
+                  <p>5-min rolling BPM averages</p>
+                  <p>Real-time windowed stats</p>
                 </CardContent>
               </Card>
 
-              {/* Storage Consumer */}
-              <Card className="border-indigo-300 bg-gradient-to-br from-indigo-50 to-white opacity-60">
+              <Card className="border-indigo-200">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="bg-indigo-500 w-10 h-10 rounded-lg flex items-center justify-center">
+                    <div className="bg-indigo-400 w-10 h-10 rounded-lg flex items-center justify-center">
                       <Archive className="w-5 h-5 text-white" />
                     </div>
-                    <CardTitle className="text-base">Storage</CardTitle>
+                    <div>
+                      <CardTitle className="text-base">Storage</CardTitle>
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-xs text-slate-600 mb-2 italic">Planned for M2</div>
+                <CardContent className="text-xs text-slate-500 space-y-1">
+                  <p>Persist to PostgreSQL</p>
+                  <p>Profile data to MongoDB Atlas</p>
                 </CardContent>
               </Card>
             </div>
@@ -319,8 +377,10 @@ export function MvpSection() {
                 category="Backend"
                 technologies={[
                   "Python",
-                  "Aiven for Apache Kafka (free tier)",
-                  "REST API"
+                  "FastAPI",
+                  "Apache Kafka (Aiven)",
+                  "PostgreSQL (Supabase)",
+                  "MongoDB Atlas"
                 ]}
               />
             </CardContent>
@@ -376,7 +436,7 @@ export function MvpSection() {
                     </div>
                     <div className="flex items-start gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span><strong>Backend:</strong> Python (FastAPI or Flask)</span>
+                      <span><strong>Backend:</strong> Python (FastAPI)</span>
                     </div>
                     <div className="flex items-start gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
