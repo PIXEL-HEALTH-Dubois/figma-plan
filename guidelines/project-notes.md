@@ -67,7 +67,7 @@ The Figma plan does a great job of showing *what* gets built — the data flow, 
 - Where does the backend run locally and in prod? (Railway, Render, or Fly.io are all free-tier friendly)
 
 **Missing "getting started" foundation:**
-- No ticket exists for setting up a shared GitHub repo for the actual app code (separate from this plan repo)
+- ~~No ticket exists for setting up a shared GitHub repo for the actual app code~~ — resolved: app code now lives in separate `ios`, `android` and `backend` repos (see Decisions)
 - No ticket for agreeing on a branching strategy (even just: `main` = stable, `dev` = working branch, feature branches off `dev`)
 - No ticket for a shared `.env` template so Kafka credentials, DB connection strings etc. are managed consistently across the team
 
@@ -96,7 +96,7 @@ Already mentioned above, but worth calling out explicitly in the iOS ticket: Hea
 2. **Add a `[Setup]` ticket for each team member's environment** — Xcode setup, Android Studio setup, Python/FastAPI setup, Kafka local testing.
 3. **Lock in the undecided tech choices** (FastAPI, PostgreSQL, Firestore or MongoDB Atlas, Railway for hosting).
 4. **Add a "Kafka Foundations" ticket** — just understanding producers, consumers, and topics with a hello-world example before touching the real app.
-5. **Create the actual app code repo(s)** — this plan repo is great for the spec, but you'll want separate repos (or a monorepo) for the iOS app, Android app, and backend.
+5. ~~**Create the actual app code repo(s)**~~ *(done: `ios`, `android`, `backend`)* — this plan repo is great for the spec, but you'll want separate repos (or a monorepo) for the iOS app, Android app, and backend.
 
 ---
 
@@ -111,7 +111,7 @@ Don't let the gaps above overshadow what's already good:
 
 ---
 
-*Last updated: 2026-03-29*
+*Last updated: 2026-11-12*
 
 ---
 
@@ -424,8 +424,8 @@ Track decisions here as they get made so there's a single source of truth.
 | Kafka hosting | Aiven free tier | Managed, no infra to maintain | — |
 | Story point unit | 30 minutes = 1 SP | Side project constraint, keeps sessions achievable | 2026-03-29 |
 | Branching strategy | TBD | — | — |
-| Repo structure | TBD (monorepo vs separate repos) | — | — |
+| Repo structure | Separate repos under PIXEL-HEALTH-Dubois: `figma-plan`, `ios`, `android`, `backend` | Independent toolchains and release cadence per platform; plan site stays lightweight | 2026-11-12 |
 
 ---
 
-*Last updated: 2026-03-29*
+*Last updated: 2026-11-12*
